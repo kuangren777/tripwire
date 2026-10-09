@@ -47,3 +47,14 @@ This directory extends the v1 release with the v2 code, data and analysis of the
 3. `analysis_v2/make_numbers_v2.py && analysis_v2/tables_v2.py` regenerate every number in the paper from the frozen logs.
 
 ROPE is third-party MIT-licensed code and is not vendored here.
+
+## Terminal-freeze additions
+
+| path | content |
+|---|---|
+| `scripts/h1_synthesis_split.py` | the 6.1/23.9 pp decomposition of the H1 utility collapse |
+| `scripts/h1_ambiguity_attack_blocks.py` | ambiguity-rule block analysis on held-out replay |
+| `scripts/amb_exposure.py` | multiplicity-exposure census |
+| `scripts/natural_transfer.py` | pre-registered transfer check on the benchmark's own delegated prompts |
+| `experiments_v2/e_rope_natural.py` | natural-prompt transfer driver |
+| `data_v2/v2_natural/` | natural-transfer raw logs and router cache |
