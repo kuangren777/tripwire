@@ -7,6 +7,9 @@ traces were successful attacks undefended.
 Limits: the replay follows the undefended trajectory, so it counts what the rule would block on the calls the
 undefended agent made. It does not re-run the agent against the arm.
 usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 scripts/h1_ambiguity_attack_blocks.py  (from paper-tripwire/)"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import collections, glob, json, sys
 sys.dont_write_bytecode = True
 T = "."

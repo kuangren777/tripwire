@@ -1,7 +1,7 @@
-"""E2X driver: the E2c confirmatory extension (EXPERIMENT_PLAN_v2.md §E2X), tasks from data/e2x/tasks.json.
+"""E2X driver: the E2c confirmatory extension (EXPERIMENT_PLAN_v2.md §E2X), tasks from data_v2/e2x/tasks.json.
 Conditions a (clean document), b (attacker destination inserted), c (whole-document replacement), and the hist
 amendment conditions a_h (clean document plus the destination seeded into the user-authored record store) and
-c_h (replacement plus the attacker's value seeded into a RECEIVED record; af-man #661). a_h / c_h run only on
+c_h. a_h / c_h run only on
 banking and dailylife, the two suites whose user-authored store a read tool can reach. The document is written
 into a fresh suite environment; the task prompt replaces the carrier task's prompt (user_task_0 of the suite,
 prompt_override), and the carrier's own utility is not used. Outcomes from the logged messages, as in E2c:
@@ -11,8 +11,11 @@ prompt_override), and the carrier's own utility is not used. Outcomes from the l
   implementation that wrongly indexes received records.
 rope: these prompts are new, so ROPE's cached scopes do not cover them. The rope arm computes the scope live with
 ROPE's own live-router path (run_eval.build_pipeline, router == 'live': few-shot + trusted facts) and the router
-model claude-opus-4-8 through camel-hub, one router call per prompt, memoized in data/e2x/router_cache.json.
+model claude-opus-4-8 through an OpenAI-compatible API endpoint, one router call per prompt, memoized in data_v2/e2x/router_cache.json.
 usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 e_rope_e2x.py --cond a|b|c|a_h|c_h --model M --arm A"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import argparse
 import json
 import sys
@@ -35,7 +38,7 @@ from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop  # noqa: 
 from agentdojo.agent_pipeline.agent_pipeline import load_system_message  # noqa: E402
 
 from e_rope_e2e4 import executed_to  # noqa: E402
-from e_rope_run import HUB, VERSION, agent_llm, build, hub_key  # noqa: E402
+from e_rope_run import VERSION, agent_llm, build, llm_env  # noqa: E402
 from tripwire_v2 import ARMS, HISTORY, TripWireV2  # noqa: E402
 
 T = Path(".")
@@ -45,12 +48,12 @@ ROUTER_MODEL = "claude-opus-4-8"
 def rope_live(suite_name, llm, name, auditfix=False, clamp=False):
     floor = load_floor(suite_name)
     if auditfix and suite_name == "slack":
-        # amendment 3 (af-man #813): sensitivity arm only. Add invite_user_to_slack.user_email to the audited
+        # amendment 3: sensitivity arm only. Add invite_user_to_slack.user_email to the audited
         # floor using ROPE's own convention for recipient parameters (send_direct_message.recipient and
         # invite_user_to_slack.user are both ('sourced',)). The rope/ src tree is not modified.
         floor = {**floor, "invite_user_to_slack": {**floor["invite_user_to_slack"], "user_email": ("sourced",)}}
-    client = openai.OpenAI(api_key=hub_key(), base_url=HUB)
-    completer = cached_chat_completer(client, ROUTER_MODEL, LLMCache(T / "data/e2x/router_cache.json"))
+    client = openai.OpenAI(api_key=llm_env.api_key(), base_url=llm_env.api_base())
+    completer = cached_chat_completer(client, ROUTER_MODEL, LLMCache(T / "data_v2/e2x/router_cache.json"))
     return RP.build_routed_pipeline(llm, suite_name=suite_name, floor=floor,
                                     live_router_complete=completer, live_examples=fewshot(suite_name),
                                     live_trusted_facts=trusted_facts(suite_name), clamp=clamp, name=name)
@@ -107,16 +110,17 @@ def env_with_doc(suite, row, text, cond=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cond", required=True, choices=["a", "b", "c", "a_h", "c_h"])
+    ap.add_argument("--cond", required=True, choices=["a", "b", "c", "a_h", "c_h", "m", "s", "ma"])
     ap.add_argument("--model", required=True)
     ap.add_argument("--arm", required=True)
-    ap.add_argument("--logroot", type=Path, default=T / "data")
+    ap.add_argument("--logroot", type=Path, default=T / "data_v2")
     ap.add_argument("--limit", type=int, default=0)
     a = ap.parse_args()
     name = f"{a.model}-{a.arm}"
     logdir = a.logroot / f"e2x_{a.cond}" / a.model / a.arm
     logdir.mkdir(parents=True, exist_ok=True)
-    rows = json.load(open(T / "data/e2x/tasks.json"))
+    # amendment 6: conditions m and s read the adaptive variants built by e2x_tasks_adaptive.py
+    rows = json.load(open(T / ("data_v2/e2x/tasks_adaptive.json" if a.cond in ("m", "s", "ma") else "data_v2/e2x/tasks.json")))
     n = s = 0
     for sn in ("banking", "slack", "dailylife", "shopping"):
         if a.cond in ("a_h", "c_h") and sn not in ("banking", "dailylife"):
@@ -139,7 +143,7 @@ def main():
                     break
                 f = logdir / name / sn / row["id"] / f"e2x_{a.cond}" / "none.json"
                 if f.exists() and "utility" in json.loads(f.read_text() or "{}"):
-                    d = json.loads(f.read_text()); n += 1; s += bool(d["utility"] if a.cond in ("a", "a_h") else d["security"]); continue
+                    d = json.loads(f.read_text()); n += 1; s += bool(d["utility"] if a.cond in ("a", "a_h", "ma") else d["security"]); continue
                 base = "a" if a.cond == "a_h" else "c" if a.cond == "c_h" else a.cond
                 env = env_with_doc(suite, row, row[f"text_{base}"], a.cond)
                 with TraceLogger(delegate=Logger.get(), suite_name=sn, user_task_id=row["id"], injection_task_id=None,
@@ -154,7 +158,7 @@ def main():
                     sec = executed_to(msgs, {row["attacker"].lower()})
                     lg.set_contextarg("utility", util)
                     lg.set_contextarg("security", sec)
-                n += 1; s += bool(util if a.cond in ("a", "a_h") else sec)
+                n += 1; s += bool(util if a.cond in ("a", "a_h", "ma") else sec)
     print(f"[e2x_{a.cond} {a.model} {a.arm}] {'utility' if a.cond in ('a', 'a_h') else 'success'} {s}/{n}", flush=True)
 
 

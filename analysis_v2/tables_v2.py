@@ -1,16 +1,19 @@
-"""Generate every table in paper-v2 as a .tex fragment under paper-v2/tab/. Numbers come only from the
+"""Generate every table in paper-v2 as a .tex fragment under paper_artifacts/tab/. Numbers come only from the
 result files; nothing is typed by hand. Rerun after any analysis change.
 usage: python3 tables_v2.py"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import glob, json
 
 T = "."
-OUT = f"{T}/paper-v2/tab"
-e2x = json.load(open(f"{T}/data/e2x_summary.json"))
-xtab = json.load(open(f"{T}/data/e2x/rope_scope_xtab.json"))
-h1 = json.load(open(f"{T}/data/v2_heldout/decision.json"))
-cu = json.load(open(f"{T}/data/diag/h1_cu.json"))
-prev = json.load(open(f"{T}/data/e2x/prevalence.json"))
-bprev = json.load(open(f"{T}/data/e2x/boundary_prevalence.json"))
+OUT = f"{T}/paper_artifacts/tab"
+e2x = json.load(open(f"{T}/data_v2/e2x_summary.json"))
+xtab = json.load(open(f"{T}/data_v2/e2x/rope_scope_xtab.json"))
+h1 = json.load(open(f"{T}/data_v2/v2_heldout/decision.json"))
+cu = json.load(open(f"{T}/data_v2/diag/h1_cu.json"))
+prev = json.load(open(f"{T}/data_v2/e2x/prevalence.json"))
+bprev = json.load(open(f"{T}/data_v2/e2x/boundary_prevalence.json"))
 MODELS = {"gpt-4o-mini-2024-07-18": "gpt-4o-mini", "gpt-4o-2024-08-06": "gpt-4o",
           "qwen3-235b-a22b-instruct-2507": "qwen3-235b"}
 ARMS = [("none", "no defense"), ("rope", "ROPE (live)"), ("tripwire_v2", "deleg (ours)"),
@@ -71,17 +74,22 @@ open(f"{OUT}/h1_permodel.tex", "w").write(
     "\\begin{tabular}{@{}lcccc@{}}\n\\toprule\nModel & none & rope & deleg & strict \\\\\n\\midrule\n"
     + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
 
-# T4: H1 blocked-call classification
-rows = []
+# T4: H1 blocked-call classification, split by cell group (external review round 2). First rule partitions the blocked calls;
+# any rule counts each distinct rule a call triggers once.
 labels = {"LABEL:NONE": "model-made value", "R1": "read locator", "LABEL:FREE_TEXT": "copied prose",
           "R2b": "unanchored write", "LABEL:DELEGATED": "delegated value", "LABEL:AMBIGUOUS": "ambiguous"}
+bg = json.load(open(f"{T}/data_v2/diag/h1_blocks_by_group.json"))
+rows = []
 for rule, lab in labels.items():
-    v = cu["v2b_strict"]["table"].get("shopping|" + rule, 0) + cu["v2b_strict"]["table"].get("github|" + rule, 0) \
-        + cu["v2b_strict"]["table"].get("dailylife|" + rule, 0)
-    rows.append(f"{lab} & {v} \\\\")
-open(f"{OUT}/h1_blocks.tex", "w").write(
-    "\\begin{tabular}{@{}lr@{}}\n\\toprule\nTriggering rule & blocked calls \\\\\n\\midrule\n"
-    + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
+    s, o = bg["syn"], bg["other"]
+    rows.append(f"{lab} & {s['first'].get(rule, 0)} & {s['any'].get(rule, 0)} & {o['first'].get(rule, 0)} & {o['any'].get(rule, 0)} \\\\")
+rows.append("\\midrule\ntotal & " + f"{bg['syn']['calls']} & {sum(bg['syn']['any'].values())} & {bg['other']['calls']} & {sum(bg['other']['any'].values())} \\\\")
+assert bg["syn"]["calls"] + bg["other"]["calls"] == cu["v2b_strict"]["n_blocked_calls"]
+for _o in (OUT, f"{T}/paper_artifacts/tab"):
+    open(f"{_o}/h1_blocks.tex", "w").write(
+        "\\begin{tabular}{@{}lrrrr@{}}\n\\toprule\n & \\multicolumn{2}{c}{" + f"{bg['syn']['traces']} synthesis cells" + "} & \\multicolumn{2}{c}{" + f"{bg['other']['traces']} other cells" + "} \\\\\n"
+        "\\cmidrule(lr){2-3}\\cmidrule(l){4-5}\nRule & first & any & first & any \\\\\n\\midrule\n"
+        + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
 
 # T5: boundary census
 rows = []

@@ -1,4 +1,4 @@
-"""TripWire v2 candidate rules (af-man #524), designed on the E1 development traces only. Still no model call.
+"""TripWire v2 candidate rules, designed on the E1 development traces only. Still no model call.
 
   R1  read locators: the locator argument of a read tool that fetches from an address (get_webpage.url) is a
       control argument with typed-only trust (USER or STRUCTURED); a fetch to an address copied out of tool text
@@ -11,7 +11,13 @@
 TripWireV2(mode, r1, r2, amb) composes these on top of v1's TripWireExecutor; with all flags off it is v1.
 """
 from __future__ import annotations
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 
+from ast import literal_eval
+
+from agentdojo.agent_pipeline.tool_execution import is_string_list
 from tripwire import (CONTROL_ARGS, CREDENTIAL_ARGS, DOC_ARGS, TYPED_ONLY_ARGS, Provenance, TripWireExecutor,
                       _values, canon, norm, tool_result_to_str)
 from tripwire_agentdyn import (CONTENT_WRITES_AGENTDYN, CONTROL_ARGS_AGENTDYN, CREDENTIAL_ARGS_AGENTDYN,
@@ -38,7 +44,7 @@ class ProvenanceV2(Provenance):
     def __init__(self, user_text, use_compact=True, use_taint=True, amb=False):
         super().__init__(user_text, use_compact, use_taint)
         self.amb = amb
-        self.ua_struct = set()   # v2c (af-man #1009): typed values that come from USER-AUTHORED records
+        self.ua_struct = set()   # v2c: typed values that come from USER-AUTHORED records
 
     def note_args(self, args: dict):
         if not self.use_taint:
@@ -48,6 +54,22 @@ class ProvenanceV2(Provenance):
             for x in _values(v):
                 if isinstance(x, str) and self.source(x) in bad:
                     self.tainted.add(norm(x))
+
+    expand_lists = False   # amendment 5, rule S1 (v2.1 only); False keeps every v2 arm unchanged
+
+    def add_result(self, obj, key=None):
+        """S1: a str field holding a serialized list literal is indexed element by element under the field's own
+        key, the same parsing v1 already applies to arguments (tripwire._values)."""
+        if self.expand_lists and isinstance(obj, str) and is_string_list(obj):
+            try:
+                items = literal_eval(obj)
+            except Exception:  # noqa: BLE001
+                items = None
+            if isinstance(items, (list, tuple)):
+                for x in items:
+                    super().add_result(x, key)
+                return
+        super().add_result(obj, key)
 
     def ua_extract(self, res):
         """v2c: destinations in records the user authored. Suite extractor (HISTORY) applied to EVERY result;
@@ -79,8 +101,9 @@ class ProvenanceV2(Provenance):
 
 class TripWireV2(TripWireExecutor):
     def __init__(self, mode="block", r1=False, r2=False, amb=False, r1_deleg=False, r2_free=False,
-                 history=None, v2c=False, **kw):
+                 history=None, v2c=False, expand_lists=False, **kw):
         super().__init__(mode=mode, **kw)
+        self.expand_lists = expand_lists
         self.history, self._hist_done = history, False   # history = (tool_name, extract) or None
         self.v2c = v2c
         self.r1, self.r2, self.amb = r1, r2, amb
@@ -92,6 +115,7 @@ class TripWireV2(TripWireExecutor):
             self.prov = ProvenanceV2(query, self.use_compact, self.use_taint, self.amb)
             self.prov.history = self.history
             self.prov.v2c = self.v2c
+            self.prov.expand_lists = self.expand_lists
         if self.history and not self._hist_done:
             self._hist_done = True
             from tripwire import canon, norm
@@ -175,13 +199,16 @@ ARMS = {   # dev-set arms: name -> constructor kwargs
     "v1_r2b": dict(mode="block", r2=True, r2_free=True),
     "v2b_deleg": dict(mode="block", r1=True, r1_deleg=True, r2=True, r2_free=True, amb=True),
     "v2b_strict": dict(mode="strict", r1=True, r2=True, r2_free=True, amb=True),
-    # hist (E2X amendment 2, af-man #770): STRICT plus history corroboration - a relaxation of strict, not a
+    # hist: STRICT plus history corroboration - a relaxation of strict, not a
     # tightening of nodeleg. Strict denies FREE_TEXT, AMBIGUOUS, DELEGATED and NONE; the history loader puts
     # corroborated values into prov.struct first, and source() checks STRUCTURED before DELEGATED, so exactly the
     # user-authored-corroborated values pass. Model-fabricated values (NONE) stay denied - the guessed-address
     # cells of the archived v1 run showed why that must hold.
     "v2b_hist": dict(mode="strict", r1=True, r2=True, r2_free=True, amb=True),
-    # v2c (post-hoc fix of the c_h finding, af-man #1009): STRUCTURED admits only USER-AUTHORED record values
+    # v2c: STRUCTURED admits only USER-AUTHORED record values
     # (same extractor as history, applied to every result). Never swapped into H1; amendment 4 governs it.
     "v2c_strict": dict(mode="strict", r1=True, r2=True, r2_free=True, amb=True, v2c=True),
+    # v2.1 (amendment 5, post-hoc and disclosed): v2b_strict plus rule S1 (serialized-list result fields indexed
+    # per element). Reported only in the post-hoc paragraph and table; v2 stays the pre-registered result.
+    "v21_strict": dict(mode="strict", r1=True, r2=True, r2_free=True, amb=True, expand_lists=True),
 }

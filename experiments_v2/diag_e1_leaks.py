@@ -1,10 +1,10 @@
-"""Diagnostic (af-man #515, not a paper decision): on gpt-4o-mini E1, the attacked pairs where a TripWire arm's attack
+"""Diagnostic: on gpt-4o-mini E1, the attacked pairs where a TripWire arm's attack
 succeeded and rope's did not. For each, re-execute the logged tool calls on a fresh environment with the logged
 injections (deterministic AgentDojo tools), rebuilding TripWire's Provenance exactly as TripWireExecutor does
 (note_args, then add_call_result for executed calls only). Every executed side-effecting call is listed with the
 source label of each control argument, the record and field the value came from, and whether that value occurs in
 the attacker's injection text (attacker-writable).
-usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 diag_e1_leaks.py -> data/diag/e1_leaks.json + table"""
+usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 diag_e1_leaks.py -> data_v2/diag/e1_leaks.json + table"""
 import collections, glob, json, os, re, sys
 from ast import literal_eval
 
@@ -17,8 +17,8 @@ from pydantic import BaseModel  # noqa: E402
 from corrections import corrected_security  # noqa: E402
 from tripwire import CONTROL_ARGS, Provenance, _values, norm  # noqa: E402
 
-D = "./data/e1_rope/gpt-4o-mini-2024-07-18"
-OUT = "./data/diag/e1_leaks.json"
+D = "./data_v2/e1_rope/gpt-4o-mini-2024-07-18"
+OUT = "./data_v2/diag/e1_leaks.json"
 
 
 def cells(arm):

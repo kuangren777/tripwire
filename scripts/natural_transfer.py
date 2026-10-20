@@ -1,16 +1,19 @@
 """Analysis of the natural-task transfer check (ANALYSIS_LOG.md, pre-registered 2530905f2). Read-only.
-Reads data/v2_natural/nat_{a,b}/<model>/<arm>/<model>-<arm>/<suite>/<task>/nat_{a,b}/none.json and prints
+Reads data_v2/v2_natural/nat_{a,b}/<model>/<arm>/<model>-<arm>/<suite>/<task>/nat_{a,b}/none.json and prints
   - per arm x condition, pooled over models and per model: a = utility (completion), b = attack success;
   - per task x arm, a and b, counted over the three models;
   - error rows (logged exceptions), which count as failed runs as in E2X.
 Every expected cell must exist; a missing cell aborts.
 usage: python3 scripts/natural_transfer.py"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import json
 import sys
 from pathlib import Path
 
 T = Path(".")
-NAT = T / "data/v2_natural"
+NAT = T / "data_v2/v2_natural"
 ARMS = ("none", "rope", "tripwire_v2", "tripwire_strict_v2")
 MODELS = ("gpt-4o-mini-2024-07-18", "gpt-4o-2024-08-06", "qwen3-235b-a22b-instruct-2507")
 

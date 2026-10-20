@@ -38,8 +38,8 @@ huggingface-cli download protectai/deberta-v3-base-prompt-injection-v2 --local-d
 
 | variable | used by | meaning |
 |---|---|---|
-| `OPENAI_BASE_URL` | harness | OpenAI-compatible gateway that serves the hosted models, including the `/v1` suffix (required for experiments) |
-| `OPENAI_API_KEY` | harness | key for that gateway (required for experiments) |
+| `OPENAI_BASE_URL` | harness | OpenAI-compatible API endpoint that serves the hosted models, including the `/v1` suffix (required for experiments) |
+| `OPENAI_API_KEY` | harness | key for that API endpoint (required for experiments) |
 | `LOCAL_VLLM` | harness | base URL of the vLLM server for `qwen3-8b-local`, default `http://localhost:8021/v1` |
 | `LOCAL_VLLM_HOST` | harness | host prefix for the other local servers, default `http://localhost` (ports below) |
 | `AGENTDOJO_SRC` | all | optional path to an AgentDojo `src/` checkout, only needed if AgentDojo is not pip-installed |
@@ -47,7 +47,7 @@ huggingface-cli download protectai/deberta-v3-base-prompt-injection-v2 --local-d
 | `TRIPWIRE_OUT` | analysis | output directory of `analyze.py`, `make_numbers.py`, `make_figs.py`, default `./out` |
 | `TW_ARMS`, `TW_LOG`, `ATK_ARMS`, `ABL_KINDS`, `REP`, `TF_MAX_TOKENS` | drivers | optional run selection, see the driver sources |
 
-The analysis scripts and the unit tests need no gateway and no keys.
+The analysis scripts and the unit tests need no API endpoint and no keys.
 
 ## Unit tests
 
@@ -81,8 +81,8 @@ Statistics (bootstrap and exact tests) are seeded from the cell keys, so reruns 
 
 ## Re-run the experiments
 
-Hosted models go through `OPENAI_BASE_URL` (any OpenAI-compatible gateway with tool calling): `gpt-5.6-sol`, `gemini-3.1-pro`, `claude-sonnet-5`, `deepseek-v4.1-flash`, `kimi-k3`, `glm-5.3`.
-The four small open-weight models must be served locally with vLLM (tool calling enabled, 16384 context), because gateways commonly drop the `tools` parameter for open-weight channels:
+Hosted models go through `OPENAI_BASE_URL` (any OpenAI-compatible API endpoint with tool calling): `gpt-5.6-sol`, `gemini-3.1-pro`, `claude-sonnet-5`, `deepseek-v4.1-flash`, `kimi-k3`, `glm-5.3`.
+The four small open-weight models must be served locally with vLLM (tool calling enabled, 16384 context), because API endpoints commonly drop the `tools` parameter for open-weight channels:
 
 | model tag | served model | endpoint |
 |---|---|---|
@@ -97,7 +97,7 @@ The parser flag differs per model family. The harness uses the sampling temperat
 Every driver appends to its log under `data/` and skips runs already present, so running them in place resumes or extends the frozen logs. To keep the frozen files untouched, copy `data/` first or use `TW_LOG=data/new.jsonl` for the main grid.
 
 ```bash
-export OPENAI_BASE_URL=https://your-gateway.example/v1 OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://your-API endpoint.example/v1 OPENAI_API_KEY=...
 cd experiments
 python exp_tw.py <model> [workers=16] [reps=1]        # main grid: 9 arms x 4 suites -> data/tw_main.jsonl   (all 10 models)
 python exp_ablation.py qwen3-8b-local [workers=6]      # RQ3 ablations (compaction, taint store, typed store) -> data/tw_ablation.jsonl
@@ -107,8 +107,8 @@ python exp_overhead.py                                 # RQ2 overhead micro-benc
 python exp_taint_replay.py                             # taint replay on scripted solutions, no LLM -> data/tw_taint_replay.json
 ```
 
-`TW_ARMS=tripwire,tw_monitor` restricts the defense arms of `exp_tw.py`. `pi_detector` needs the DeBERTa weights, `melon` needs an embedding model (`bge-m3`) on the gateway.
-LLM runs are stochastic and gateway models change, so a re-run will not reproduce the frozen numbers exactly. The overhead and taint-replay drivers involve no LLM, their timings depend on the machine.
+`TW_ARMS=tripwire,tw_monitor` restricts the defense arms of `exp_tw.py`. `pi_detector` needs the DeBERTa weights, `melon` needs an embedding model (`bge-m3`) on the API endpoint.
+LLM runs are stochastic and API endpoint models change, so a re-run will not reproduce the frozen numbers exactly. The overhead and taint-replay drivers involve no LLM, their timings depend on the machine.
 
 ## Data schema
 

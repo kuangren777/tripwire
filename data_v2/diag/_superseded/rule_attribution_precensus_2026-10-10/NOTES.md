@@ -1,0 +1,1 @@
+Pre-census-erratum outputs (2026-10-10, f7fddc87e): 13 of 17 (v2.1) / 13 of 22 (v2, two models). Superseded by the 2026-10-17 rerun after the 10-14 census erratum, which the paper already reported as 17 of 21 / 17 of 26 (review/census_erratum_20261014.md).

@@ -6,8 +6,8 @@ conversation where the user task is replaced by a generic "summarize this file" 
 all tool outputs; if any tool call of the real run has cosine similarity > 0.8 with a tool call the
 masked run produced (bank accumulated across steps), stop the agent.
 
-Changes, all forced by the environment: embeddings use bge-m3 on the gateway (text-embedding-3-large
-returned 500 on our gateway); message content is AgentDojo v1.2 content blocks instead of strings; the debug
+Changes, all forced by the environment: embeddings use bge-m3 on the API endpoint (text-embedding-3-large
+returned 500 on our API endpoint); message content is AgentDojo v1.2 content blocks instead of strings; the debug
 prints are removed.
 """
 from __future__ import annotations

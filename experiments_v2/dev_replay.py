@@ -1,10 +1,10 @@
-"""Dev-set offline proxy for TripWire v2 rules (af-man #524). Takes the undefended (`none`) E1 traces of a model,
+"""Dev-set offline proxy for TripWire v2 rules. Takes the undefended (`none`) E1 traces of a model,
 re-executes each logged tool call on a fresh environment with the logged injections, and lets a TripWire arm
 (tripwire_v2.ARMS) decide each call: a refused call is skipped, every other call runs as logged. Utility and security
 are then re-scored with AgentDojo's own checks on the resulting environment.
 This is a proxy: a live agent would react to a refusal. It is calibrated against the live v1 arm (arm `v1` here vs
 E1 `tripwire`). Development data only; no model call.
-usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 dev_replay.py [model ...] -> data/dev_v2/replay.json"""
+usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 dev_replay.py [model ...] -> data_v2/dev_v2/replay.json"""
 import collections, glob, json, os, sys
 from ast import literal_eval
 
@@ -14,8 +14,8 @@ from agentdojo.task_suite.load_suites import get_suite  # noqa: E402
 
 from tripwire_v2 import ARMS, TripWireV2  # noqa: E402
 
-D = "./data/e1_rope"
-OUT = "./data/dev_v2/replay.json"
+D = "./data_v2/e1_rope"
+OUT = "./data_v2/dev_v2/replay.json"
 SUITES = {n: get_suite("v1.2.2", n) for n in ("banking", "slack", "travel")}
 
 

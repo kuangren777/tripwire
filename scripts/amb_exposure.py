@@ -7,6 +7,9 @@ named-document match (e2x_prevalence.py) and tripwire.py's CLASSES and canon:
   (2) every document the census walks (docs(env), six suites), and the subset named by some task prompt: how many
       hold >1 distinct value of at least one class.
 usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 scripts/amb_exposure.py  (from paper-tripwire/)"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import json, sys
 sys.dont_write_bytecode = True
 T = "."
@@ -15,7 +18,7 @@ from agentdojo.task_suite.load_suites import get_suite  # noqa: E402
 from e2x_prevalence import docs, VERSION  # noqa: E402
 from tripwire import CLASSES, canon, norm, value_class  # noqa: E402
 
-prev = json.load(open(f"{T}/data/e2x/prevalence.json"))
+prev = json.load(open(f"{T}/data_v2/e2x/prevalence.json"))
 
 
 def multi(text):

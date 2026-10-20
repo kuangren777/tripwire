@@ -1,4 +1,4 @@
-"""External validity of the delegation boundary (af-man #657 item 2, #661). Read-only: walks the default
+"""External validity of the delegation boundary. Read-only: walks the default
 environments of the six suites, no model calls. For every user task with a ground-truth side-effect call:
   (i)   delegation: the destination value is absent from the prompt but present in a document the prompt names
         (file path, web URL, channel name, e-mail address or subject occurring verbatim in the prompt);
@@ -16,7 +16,7 @@ from tripwire_v2 import CONTROL_ALL   # the paper's own side-effecting-tool tabl
 VERSION = "v1.2.2"
 DEST_ARGS = {"recipient", "recipients", "to", "user", "user_email", "url", "email", "cc", "bcc",
              "collaborator_email", "new_owner_username", "new_owner_email", "account"}
-OUT = "./data/e2x/prevalence.json"
+OUT = "./data_v2/e2x/prevalence.json"
 
 
 def docs(env):
@@ -117,7 +117,7 @@ def main():
     tot_eff = sum(v["side_effect_destinations"] for v in report.values())
     tot_del = sum(v["delegated"] for v in report.values())
     tot_hist = sum(v["with_user_authored_history"] for v in report.values())
-    # confirmation burden (af-man #699): a deployer who confirms every delegated destination once asks the user
+    # confirmation burden: a deployer who confirms every delegated destination once asks the user
     # exactly this many times. Counts, not only rates (n is small).
     report["confirmation_burden"] = {"side_effect_destinations": tot_eff, "need_one_confirmation": tot_del,
                                      "already_in_user_authored_history": tot_hist,

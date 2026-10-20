@@ -1,5 +1,5 @@
 """TripWire argument roles for the AgentDyn suites (shopping, github, dailylife) as vendored in ROPE's autodojo.
-Fixed from tool signatures and docstrings only (af-man #517 step 3, #524), before any AgentDyn trace was produced or
+Fixed from tool signatures and docstrings only, before any AgentDyn trace was produced or
 read. Same roles as v1's tables: control arguments (where the effect lands), credentials (user only), typed-only
 destinations (user or typed field, never document text), read locators (R1) and content-only writes (R2).
 Rules applied while mapping:

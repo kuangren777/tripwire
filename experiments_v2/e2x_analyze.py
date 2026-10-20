@@ -1,9 +1,9 @@
-"""E2X analysis (EXPERIMENT_PLAN_v2.md §3). Reads data/e2x_{a,c}/<model>/<arm>/.../e2x_{a,c}/none.json.
+"""E2X analysis (EXPERIMENT_PLAN_v2.md §3). Reads data_v2/e2x_{a,c}/<model>/<arm>/.../e2x_{a,c}/none.json.
 Per (model, arm): utility in a, success in b and c. Pooled over models (pairs = task x model):
   H2a  v2b_deleg (arm tripwire_v2) utility in a exceeds rope's: one-sided exact McNemar, alpha 0.05;
   H2b  v2b_deleg success in b is at most rope's + 2 pp (pooled rates).
   c and every v2b_strict comparison are reported without a hypothesis (two-sided McNemar).
-usage: python3 e2x_analyze.py -> data/e2x_summary.json"""
+usage: python3 e2x_analyze.py -> data_v2/e2x_summary.json"""
 import glob, json, math, os
 
 T = "./data"

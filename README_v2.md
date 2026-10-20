@@ -58,3 +58,48 @@ ROPE is third-party MIT-licensed code and is not vendored here.
 | `scripts/natural_transfer.py` | pre-registered transfer check on the benchmark's own delegated prompts |
 | `experiments_v2/e_rope_natural.py` | natural-prompt transfer driver |
 | `data_v2/v2_natural/` | natural-transfer raw logs and router cache |
+
+## Manuscript version 35fc233 (journal submission)
+
+This section maps the submitted manuscript, version `35fc233`, to the code and frozen data in this repository. The
+logs used by earlier versions are unchanged; the folders below add what this version prints.
+
+| path | content |
+|---|---|
+| `paper_artifacts/numbers-v2.tex`, `paper_artifacts/tab/*.tex` | the number macros and table fragments of manuscript 35fc233, as submitted |
+| `scripts/` | the generators behind those fragments (map below), plus `fmtnum.py`, the single ROUND_HALF_UP formatter |
+| `analysis_s7/`, `data_v2/s7/` | the offline validity checks of Table S2 (bridge agreement, repeat runs, natural documents, label collisions, field typing) and their outputs |
+| `data_v2/r2c/` | the router-free ROPE condition of RQ2 |
+| `data_v2/e2x_m/`, `e2x_ma/`, `e2x_s/` | adaptive-insertion conditions and the masked clean control |
+| `data_v2/v2_heldout/*/tripwire_strict_v21/` | the v2.1 rule on the held-out set |
+| `data_v2/provenance/` | `compare.json`, the cell-by-cell comparison of every numeric table with its regeneration from raw data |
+| `experiments_v2/llm_env.py` | endpoint and key of the hosted models, read at call time from `LLM_API_BASE` and `LLM_API_KEY` |
+
+### Table-to-script map for 35fc233
+
+Run from the repository root with ROPE at commit 64495e16 in `ext/rope`:
+
+```bash
+export PYTHONPATH=ext/rope/autodojo/src:ext/rope/src:ext/rope/runs
+python3 analysis_v2/make_numbers_v2.py      # paper_artifacts/numbers-v2.tex
+python3 scripts/h1_v21_compare.py           # tab/v21.tex, tab/v21_numbers.tex
+python3 scripts/sands_ci_rows.py            # interval rows of Tables 6 and S6, written as "lower to upper"
+python3 scripts/r2c_stage2.py               # tab/r2c_numbers.tex
+python3 scripts/melon_table.py              # tab/melon_e2x.tex
+python3 scripts/natural_transfer.py         # tab/natural_transfer.tex
+python3 analysis_s7/s7_table.py             # tab/s7_validity.tex
+python3 scripts/prose_numbers.py --macros   # tab/prose_numbers.tex, every number in the prose
+```
+
+`sands_ci_rows.py` rewrites the interval rows that `h1_v21_compare.py` writes, so run it after that script.
+`prose_numbers.py --check` also matches every phrase against the manuscript prose, which is not part of this repository.
+With that prose in place, the check passes for all 88 phrases and the 192 macros equal the submitted ones.
+The fragments `census.tex`, `e2x_main.tex`, `rope_scope.tex` and the header of `rope_sensitivity.tex` were edited by
+hand in the manuscript, so no script writes them. `scripts/tables_from_raw.py` recomputed every numeric table cell from
+the raw logs and compared it with the earlier conference layout of the same tables. That layout is not shipped, so the
+comparison step does not run here. Its recorded result is `data_v2/provenance/compare.json`.
+`analysis_v2/tables_v2.py` writes the earlier layout of the tables.
+
+### Integrity
+
+`SHA256SUMS_35fc233.txt` lists the sha256 of every file in this version of the repository.

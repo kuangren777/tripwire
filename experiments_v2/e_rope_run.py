@@ -1,9 +1,12 @@
 """E1/E2/E4 driver (EXPERIMENT_PLAN_rope.md). Runs every arm inside ROPE's official harness (agent-fuzz/ext/rope @ 64495e16):
 ROPE's AgentDojo v1.2.2 suites, benchmark functions, attack loader and logging. Only two things are ours:
-the agent LLM client goes to camel-hub (or the shared vLLM on 8021 for qwen3-8b-local) instead of OpenRouter, and
+the agent LLM client goes to an OpenAI-compatible API endpoint (or the shared vLLM on 8021 for qwen3-8b-local) instead of OpenRouter, and
 the tripwire / tripwire_strict arms build ROPE's passthrough pipeline shape with TripWireExecutor as the executor.
 usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 e_rope_run.py --model M --arm none|rope|tripwire|tripwire_strict
            --suite banking|slack|travel --attack none|important_instructions [--user-task ..] [--injection-task ..]"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import argparse
 import os
 import sys
@@ -26,30 +29,20 @@ from rope import pipeline as RP  # noqa: E402
 from rope.scopes_io import load_router_scopes  # noqa: E402
 from tripwire import TripWireExecutor  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import llm_env  # noqa: E402  LLM_API_BASE / LLM_API_KEY, read at call time
+
 VERSION = "v1.2.2"
-HUB = "https://api.camel-hub.cn/v1"
-LOCAL = {"qwen3-8b-local": ("http://127.0.0.1:8021/v1", "qwen3-8b-local")}   # served name on the shared vLLM, as in testbed/harness.py
+LOCAL = {"qwen3-8b-local": ("http://localhost:8021/v1", "qwen3-8b-local")}   # served name on the shared vLLM, as in testbed/harness.py
 # Attack text names the model from the pipeline name (agentdojo.attacks.base_attacks.get_model_name_from_pipeline):
 # gpt-4o-mini-2024-07-18 -> "GPT-4", every other model here -> "AI assistant", exactly as in ROPE's own runs.
-
-
-def hub_key():
-    """The agent gateway key: set CAMEL_HUB_KEY (or point CAMEL_HUB_ENV at a file defining it)."""
-    if os.environ.get("CAMEL_HUB_KEY"):
-        return os.environ["CAMEL_HUB_KEY"]
-    p = os.environ.get("CAMEL_HUB_ENV", "")
-    if p and os.path.exists(p):
-        for line in open(p):
-            if line.startswith("CAMEL_HUB_KEY="):
-                return line.split("=", 1)[1].strip().strip('"')
-    raise SystemExit("set CAMEL_HUB_KEY (see README)")
 
 
 def agent_llm(model, temperature):
     if model in LOCAL:
         url, served = LOCAL[model]
         return OpenAILLM(openai.OpenAI(api_key="EMPTY", base_url=url), served, temperature=temperature)
-    return OpenAILLM(openai.OpenAI(api_key=hub_key(), base_url=HUB), model, temperature=temperature)
+    return OpenAILLM(openai.OpenAI(api_key=llm_env.api_key(), base_url=llm_env.api_base()), model, temperature=temperature)
 
 
 class ResetTW(BasePipelineElement):
@@ -69,20 +62,78 @@ def build(arm, suite, llm, name):
     if arm == "rope":
         floor, scopes = load_router_scopes("opus", suite)
         return RP.build_routed_pipeline(llm, suite_name=suite, floor=floor, cached_scopes=scopes, name=name)
+    if arm == "rope_fixed":   # Amendment 7 (R2c): same ROPE pipeline, router output removed (no overrides, no named source)
+        from rope.policy_synthesis import TaskScope
+        floor, scopes = load_router_scopes("opus", suite)
+        fixed = {p: TaskScope(bucket=sc.bucket, named_source=None, overrides={}) for p, sc in scopes.items()}
+        return RP.build_routed_pipeline(llm, suite_name=suite, floor=floor, cached_scopes=fixed, name=name)
     if arm in ("tripwire", "tripwire_strict"):
         tw = TripWireExecutor(mode="block" if arm == "tripwire" else "strict")
         pipe = AgentPipeline([SystemMessage(load_system_message(None)), InitQuery(), ResetTW(tw), llm,
                               ToolsExecutionLoop([tw, llm])])
         pipe.name = name
         return pipe
-    if arm in ("tripwire_v2", "tripwire_strict_v2"):   # v2b_deleg / v2b_strict in tripwire_v2.ARMS
+    if arm in ("tripwire_v2", "tripwire_strict_v2", "tripwire_strict_v21"):   # v2b_deleg / v2b_strict / v21_strict
         from tripwire_v2 import ARMS, TripWireV2
-        tw = TripWireV2(**ARMS["v2b_deleg" if arm == "tripwire_v2" else "v2b_strict"])
+        tw = TripWireV2(**ARMS[{"tripwire_v2": "v2b_deleg", "tripwire_strict_v2": "v2b_strict",
+                                "tripwire_strict_v21": "v21_strict"}[arm]])
+        pipe = AgentPipeline([SystemMessage(load_system_message(None)), InitQuery(), ResetTW(tw), llm,
+                              ToolsExecutionLoop([tw, llm])])
+        pipe.name = name
+        return pipe
+    if arm == "tripwire_strict_v2_oracle":   # Amendment 8: v2b_strict plus oracle USER source
+        from tripwire_v2 import ARMS, TripWireV2
+        tw = OracleStrict(oracle_values(suite), **ARMS["v2b_strict"])
         pipe = AgentPipeline([SystemMessage(load_system_message(None)), InitQuery(), ResetTW(tw), llm,
                               ToolsExecutionLoop([tw, llm])])
         pipe.name = name
         return pipe
     raise SystemExit(f"unknown arm {arm}")
+
+
+def oracle_values(sn):
+    """Amendment 8: prompt -> census-synthesized ground-truth control values of that task (the RQ3 census rule of
+    boundary_prevalence.py / scripts/h1_synthesis_split.py: length >= 3, absent from the prompt and the clean env)."""
+    from boundary_prevalence import CONTROL_ALL, env_text
+    suite = get_suite(VERSION, sn)
+    env = suite.load_and_inject_default_environment({})
+    E = env_text(env)
+    out = {}
+    for t in suite.user_tasks.values():
+        p = t.PROMPT.lower()
+        try:
+            gt = t.ground_truth(env)
+        except Exception:  # noqa: BLE001
+            continue
+        vs = []
+        for c in gt:
+            for a in CONTROL_ALL.get(c.function, ()):
+                v = c.args.get(a)
+                for x in (v if isinstance(v, (list, tuple)) else [v]):
+                    x = str(x)
+                    if len(x) >= 3 and x.lower() not in p and x.lower() not in E and x not in vs:
+                        vs.append(x)
+        if vs:
+            out[t.PROMPT.strip()] = vs
+    return out
+
+
+def OracleStrict(oracle, **kw):
+    """v2b_strict whose provenance index also counts the task's oracle values as USER text. The model's prompt and
+    every other rule are unchanged; only the provenance built at the first tool call sees the extra values."""
+    from tripwire_v2 import ProvenanceV2, TripWireV2
+
+    class _Oracle(TripWireV2):
+        def query(self, query, runtime, env, messages=(), extra_args={}):
+            if self.prov is None:
+                extra = oracle.get(query.strip(), [])
+                self.prov = ProvenanceV2(query + "".join("\n" + x for x in extra), self.use_compact, self.use_taint,
+                                         self.amb)
+                self.prov.history, self.prov.v2c, self.prov.expand_lists = self.history, self.v2c, self.expand_lists
+                self.oracle_used = list(extra)
+            return super().query(query, runtime, env, messages, extra_args)
+
+    return _Oracle(**kw)
 
 
 def main():
@@ -93,7 +144,7 @@ def main():
     ap.add_argument("--attack", default="none")
     ap.add_argument("--user-task", action="append", default=None)
     ap.add_argument("--injection-task", action="append", default=None)
-    ap.add_argument("--logdir", type=Path, default=Path("./data/e1_rope"))
+    ap.add_argument("--logdir", type=Path, default=Path("./data_v2/e1_rope"))
     ap.add_argument("--temperature", type=float, default=0.0)
     a = ap.parse_args()
     name = f"{a.model}-{a.arm}"

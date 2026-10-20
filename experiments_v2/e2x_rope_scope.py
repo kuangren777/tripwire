@@ -1,10 +1,10 @@
-"""af-man #811: cross-tabulate the rope arm's admit/block in E2X conditions a and b against the live router's
+""" cross-tabulate the rope arm's admit/block in E2X conditions a and b against the live router's
 cached scope for each task's prompt. The cache key is sha256(model || system || user) (common/llm_cache.py);
 we rebuild system and user exactly as rope.router.route_and_scope does (_SCOPE_SYSTEM + fewshot, SENSITIVE TOOLS
 block + trusted facts + TASK) and read the cached response. Pure lookup, no model call.
 Marker for the task's (tool, arg): the override spec if present (FREE / RECORD / CONST / PROMPT ...), else
 BUCKET(action-open) when the bucket is action-open, else 'floor' (the audited default applies).
-usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 e2x_rope_scope.py -> data/e2x/rope_scope_xtab.json"""
+usage: PYTHONPATH=ext/rope/autodojo/src:ext/rope/src python3 e2x_rope_scope.py -> data_v2/e2x/rope_scope_xtab.json"""
 import collections, glob, hashlib, json, re, sys
 
 sys.path.insert(0, "../ext/rope/src")
@@ -14,7 +14,7 @@ from rope.scopes_io import load_floor
 
 T = "."
 MODEL = "claude-opus-4-8"
-cache = json.load(open(f"{T}/data/e2x/router_cache.json"))
+cache = json.load(open(f"{T}/data_v2/e2x/router_cache.json"))
 
 
 def cached_scope(prompt, suite):
@@ -48,7 +48,7 @@ def marker(d, tool, arg, floor):
     return "BUCKET(action-open)" if d.get("bucket") == "action-open" else "floor"
 
 
-rows = json.load(open(f"{T}/data/e2x/tasks.json"))
+rows = json.load(open(f"{T}/data_v2/e2x/tasks.json"))
 xtab = collections.defaultdict(collections.Counter)
 suspects, scope_dump = [], {}
 for r in rows:
@@ -57,7 +57,7 @@ for r in rows:
     scope_dump[r["id"]] = {"suite": r["suite"], "status": st, "bucket": (sc or {}).get("bucket"),
                            "named_source": (sc or {}).get("named_source"), "marker": mk}
     for cond in ("a", "b"):
-        for f in glob.glob(f"{T}/data/e2x_{cond}/*/rope/*/*/{r['id']}/e2x_{cond}/none.json"):
+        for f in glob.glob(f"{T}/data_v2/e2x_{cond}/*/rope/*/*/{r['id']}/e2x_{cond}/none.json"):
             d = json.load(open(f))
             if "utility" not in d:
                 continue
@@ -72,4 +72,4 @@ for k in sorted(xtab):
 print("scope statuses:", collections.Counter(v["status"] for v in scope_dump.values()))
 print("suspect admissions:", suspects if suspects else "none")
 json.dump({"xtab": {str(k): dict(v) for k, v in xtab.items()}, "scopes": scope_dump, "suspects": suspects},
-          open(f"{T}/data/e2x/rope_scope_xtab.json", "w"), indent=1)
+          open(f"{T}/data_v2/e2x/rope_scope_xtab.json", "w"), indent=1)

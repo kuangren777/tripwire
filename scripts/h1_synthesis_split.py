@@ -1,57 +1,40 @@
 """Post-hoc RQ2 diagnosis of the held-out H1 experiment: split the 180 clean cells (60 tasks x 3 models) by the
 task-level synthesis label of the RQ3 census, and report clean utility for rope and the strict arm on each part.
 Read-only. Inputs:
-  data/v2_heldout/{model}/{arm}/*/{suite}/user_task_*/none/none.json   clean cells (same glob as v2_h1_decision.py)
+  data_v2/v2_heldout/{model}/{arm}/*/{suite}/user_task_*/none/none.json   clean cells (same glob as v2_h1_decision.py)
   boundary_prevalence.py                                               census rule (env_text, CONTROL_ALL, loop below)
-  data/e2x/task_level_shares.json, data/e2x/boundary_prevalence.json   cross-check of the recomputed task labels
-  data/v2_heldout/decision.json                                        cross-check of the pooled CU
+  data_v2/e2x/task_level_shares.json, data_v2/e2x/boundary_prevalence.json   cross-check of the recomputed task labels
+  data_v2/v2_heldout/decision.json                                        cross-check of the pooled CU
 The census JSONs store counts only, so the per-task labels are recomputed with boundary_prevalence.py's own rule
 (the loop in synthesis_tasks() mirrors boundary_prevalence.main line for line) and asserted against the stored counts.
 usage: PYTHONPATH=../ext/rope/autodojo/src:../ext/rope/src python3 scripts/h1_synthesis_split.py  (from paper-tripwire/)"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import glob, json, os, sys
 
 sys.dont_write_bytecode = True  # keep the project tree untouched
 T = "."
 sys.path.insert(1, T)
-for p in ("../ext/rope/autodojo/src", "../ext/rope/src"):
+for p in ("ext/rope/autodojo/src", "ext/rope/src"):
     if p not in sys.path:
         sys.path.insert(1, p)
 
 from agentdojo.task_suite.load_suites import get_suite  # noqa: E402
 
-from boundary_prevalence import VERSION, CONTROL_ALL, env_text  # noqa: E402
+from boundary_prevalence import VERSION, CONTROL_ALL, env_text, synth_values  # noqa: E402
 
-D = f"{T}/data/v2_heldout"
+D = f"{T}/data_v2/v2_heldout"
 MODELS = ["gpt-4o-mini-2024-07-18", "gpt-4o-2024-08-06", "qwen3-235b-a22b-instruct-2507"]
 SUITES = ("shopping", "github", "dailylife")
 ARMS = {"rope": "rope", "strict": "tripwire_strict_v2"}
 
 
 def synthesis_tasks(sn):
-    """boundary_prevalence.main's SYNTHESIS rule for one suite -> (task ids, n_values, n_synthesize)."""
+    """boundary_prevalence.synth_values for one suite -> (task ids, n_values, n_synthesize, n_tasks)."""
     suite = get_suite(VERSION, sn)
-    env = suite.load_and_inject_default_environment({})
-    E = env_text(env)
-    n_vals = n_syn = 0
-    tasks_syn = set()
-    for uid, t in suite.user_tasks.items():
-        prompt = t.PROMPT.lower()
-        try:
-            gt = t.ground_truth(env)
-        except Exception:  # noqa: BLE001
-            continue
-        for c in gt:
-            for a in CONTROL_ALL.get(c.function, ()):
-                v = c.args.get(a)
-                for x in (v if isinstance(v, (list, tuple)) else [v]):
-                    x = str(x)
-                    if len(x) < 3:
-                        continue
-                    n_vals += 1
-                    if x.lower() not in prompt and x.lower() not in E:
-                        n_syn += 1
-                        tasks_syn.add(uid)
-    return tasks_syn, n_vals, n_syn, len(suite.user_tasks)
+    nv, ns, ids, _ = synth_values(suite, suite.load_and_inject_default_environment({}))
+    return ids, nv, ns, len(suite.user_tasks)
 
 
 def clean_cells(model, arm):
@@ -69,9 +52,9 @@ def clean_cells(model, arm):
 
 
 def main():
-    shares = json.load(open(f"{T}/data/e2x/task_level_shares.json"))
-    bp = json.load(open(f"{T}/data/e2x/boundary_prevalence.json"))
-    dec = json.load(open(f"{T}/data/v2_heldout/decision.json"))
+    shares = json.load(open(f"{T}/data_v2/e2x/task_level_shares.json"))
+    bp = json.load(open(f"{T}/data_v2/e2x/boundary_prevalence.json"))
+    dec = json.load(open(f"{T}/data_v2/v2_heldout/decision.json"))
 
     SYN = set()
     for sn in SUITES:

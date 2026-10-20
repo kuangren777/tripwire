@@ -1,12 +1,15 @@
 """R0 gate for EXPERIMENT_PLAN_v2.md §2: ROPE's runs/aggregate.py definition (unweighted mean over the three AgentDyn
 suites, ASR through runs/corrections.py) applied to our rope logs, against ROPE's shipped logs for the same model.
 Pass iff |ASR diff| <= 5 pp and |CU diff| <= 10 pp. usage: python3 v2_r0_check.py"""
+import os as _os, sys as _sys  # release layout: modules live in these folders of the repository
+_R = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path[:0] = [_os.path.join(_R, _d) for _d in ("tripwire_v2", "tripwire", "experiments_v2", "analysis_v2", "analysis_s7", "scripts", "testbed")]
 import glob, json, re, sys
-sys.path.insert(0, "../ext/rope/runs")
+sys.path.insert(0, "ext/rope/runs")
 from corrections import corrected_security  # noqa: E402
 
-D = "./data/v2_heldout"
-R = "../ext/rope/runs"
+D = "./data_v2/v2_heldout"
+R = "ext/rope/runs"
 SUITES = ["shopping", "github", "dailylife"]
 SHIPPED = {"gpt-4o-mini-2024-07-18": "gpt-4o-mini", "gpt-4o-2024-08-06": "gpt-4o", "qwen3-235b-a22b-instruct-2507": "qwen3-235b"}
 
